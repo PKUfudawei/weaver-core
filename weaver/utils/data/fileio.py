@@ -4,7 +4,7 @@ import tqdm
 import traceback
 from .tools import _concat
 from ..logger import _logger
-
+import numpy as np
 
 def _read_hdf5(filepath, branches, load_range=None):
     import tables
@@ -22,6 +22,14 @@ def _read_hdf5(filepath, branches, load_range=None):
 
 def _read_root(filepath, branches, load_range=None, treename=None):
     import uproot
+    _branches = branches.copy()
+    if 'QCD' in filepath: ## 'JHUGen' to 'QCD'
+        extra_branches = []
+        for b in branches:
+            if b.startswith('label_H_ww') or b.startswith('label_Top') or b.startswith('label_W'):
+                _branches.remove(b)
+                extra_branches.append(b)
+               
     with uproot.open(filepath) as f:
         if treename is None:
             treenames = set([k.split(';')[0] for k, v in f.items() if getattr(v, 'classname', '') == 'TTree'])
@@ -37,7 +45,13 @@ def _read_root(filepath, branches, load_range=None, treename=None):
             stop = max(start + 1, math.trunc(load_range[1] * tree.num_entries))
         else:
             start, stop = None, None
-        outputs = tree.arrays(filter_name=branches, entry_start=start, entry_stop=stop)
+        outputs = tree.arrays(filter_name=_branches, entry_start=start, entry_stop=stop)
+        
+    if 'QCD' in filepath:
+        nevent = len(outputs)
+        for b in extra_branches:
+            outputs[b] = ak.Array([0 for _ in range(nevent)])
+        
     return outputs
 
 
