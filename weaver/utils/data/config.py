@@ -87,6 +87,8 @@ class DataConfig(object):
                         raise RuntimeError(
                             'Incompatible info for variable %s, had: \n  %s\nnow got:\n  %s' %
                             (v[0], str(self.preprocess_params[v[0]]), str(params)))
+                    if k.endswith('_mask') and params['pad_mode'] != 'constant':
+                        raise RuntimeError('The `pad_mode` must be set to `constant` for the mask input `%s`' % k)
                     if params['center'] == 'auto':
                         self._missing_standardization_info = True
                     self.preprocess_params[v[0]] = params
@@ -94,10 +96,11 @@ class DataConfig(object):
         self.label_type = opts['labels']['type']
         self.label_value = opts['labels']['value']
         if self.label_type == 'simple':
-            assert(isinstance(self.label_value, list))
+            assert (isinstance(self.label_value, list))
             self.label_names = ('_label_',)
-            self.var_funcs['_label_'] = 'np.argmax(np.stack([%s], axis=1), axis=1)' % (','.join(self.label_value))
-            self.var_funcs['_labelcheck_'] = 'np.sum(np.stack([%s], axis=1), axis=1)' % (','.join(self.label_value))
+            label_exprs = ['ak.to_numpy(%s)' % k for k in self.label_value]
+            self.var_funcs['_label_'] = 'np.argmax(np.stack([%s], axis=1), axis=1)' % (','.join(label_exprs))
+            self.var_funcs['_labelcheck_'] = 'np.sum(np.stack([%s], axis=1), axis=1)' % (','.join(label_exprs))
         else:
             self.label_names = tuple(self.label_value.keys())
             self.var_funcs.update(self.label_value)
